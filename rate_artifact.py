@@ -147,8 +147,9 @@ def parse(text, lang=tr.ja()):
     print(level, results)
     return level, results
 
-# スコアチェック
-def validate(value, max_stat, percent):
+# 値チェック
+def validate(value, max_stat, is_percent):
+    # 1.05は何？
     while value > max_stat * 1.05:
         value = str(value)
         removed = False
@@ -158,12 +159,12 @@ def validate(value, max_stat, percent):
                 removed = True
                 break
         if not removed:
-            if percent:
+            if is_percent:
                 pos = value.find('.')
                 value = value[:pos - 1] + value[pos:]
             else:
                 value = value[:-1]
-        value = float(value) if percent else int(value)
+        value = float(value) if is_percent else int(value)
     if int(value) == 1:
         value += 10
     return value
@@ -171,20 +172,10 @@ def validate(value, max_stat, percent):
 
 # スコア算出
 def rate(level, results, options={}, lang=tr.ja()):
-    main = True
-    main_score = 0.0
-    sub_score = 0.0
-    sub_weight = 0
-    main_weight = 3 + level / 4
+    sub_op_score = 0.0
 
     elements = [lang.anemo, lang.elec, lang.pyro, lang.hydro, lang.cryo, lang.geo, lang.dend]
 
-    min_mains = {lang.hp: 717.0, lang.atk: 47.0, f'{lang.atk}%': 7.0, f'{lang.er}%': 7.8, lang.em: 28.0,
-                 f'{lang.phys}%': 8.7, f'{lang.cr}%': 4.7, f'{lang.cd}%': 9.3, f'{lang.elem}%': 7.0,
-                 f'{lang.hp}%': 7.0, f'{lang.df}%': 8.7, f'{lang.heal}%': 5.4}
-    max_mains = {lang.hp: 4780, lang.atk: 311.0, f'{lang.atk}%': 46.6, f'{lang.er}%': 51.8, lang.em: 187.0,
-                 f'{lang.phys}%': 58.3, f'{lang.cr}%': 31.1, f'{lang.cd}%': 62.2, f'{lang.elem}%': 46.6,
-                 f'{lang.hp}%': 46.6, f'{lang.df}%': 58.3, f'{lang.heal}%': 35.9}
     max_subs = {lang.atk: 19.0, lang.em: 23.0, f'{lang.er}%': 6.5, f'{lang.atk}%': 5.8,
                 f'{lang.cr}%': 3.9, f'{lang.cd}%': 7.8, lang.df: 23.0, lang.hp: 299.0, f'{lang.df}%': 7.3,
                 f'{lang.hp}%': 5.8}
@@ -195,41 +186,20 @@ def rate(level, results, options={}, lang=tr.ja()):
     # Replaces weights with options
     weights = {**weights, **options}
 
-    for result in results:
+    # サブOPスコアリング
+    for result in results[1:]:
         stat, value = result
         print(f'stat: {stat} / value: {value}')
 
         key = stat if stat[:-1] not in elements else f'{lang.elem}%'
-        if main:
-            main = False
-            max_main = max_mains[key] - (max_mains[key] - min_mains[key]) * (1 - level / 20.0)
-            value = validate(value, max_main, '%' in key)
-            main_score = value / max_main * weights[key] * main_weight
-            if key in [lang.atk, lang.hp]:
-                main_weight *= weights[key]
-            count = 0
-            for k, v in sorted(weights.items(), reverse=True, key=lambda item: item[1]):
-                if k == key or k not in max_subs:
-                    continue
-                if count == 0:
-                    sub_weight += v * (1 + level / 4)
-                else:
-                    sub_weight += v
-                count += 1
-                if count == 4:
-                    break
-        else:
-            value = validate(value, max_subs[key] * 6, '%' in key)
-            sub_score += value / max_subs[key] * weights[key]
+
+        value = validate(value, max_subs[key] * 6, '%' in key)
+        sub_op_score += value * weights[key]
+        print(key, (value * weights[key]))
 
         result[1] = value
 
-    score = (main_score + sub_score) / (main_weight + sub_weight) * 100 if main_weight + sub_weight > 0 else 100
-    main_score = main_score / main_weight * 100 if main_weight > 0 else 100
-    main_score = 100 if main_score > 99 else main_score
-    sub_score = sub_score / sub_weight * 100 if sub_weight > 0 else 100
-    print(f'Gear Score: {score:.2f}% (main {main_score:.2f}% {main_weight}, sub {sub_score:.2f}% {sub_weight})')
-    return score, main_score, main_weight, sub_score, sub_weight
+    return sub_op_score
 
 
 if __name__ == '__main__':
@@ -244,5 +214,5 @@ if __name__ == '__main__':
     success, text = asyncio.run(ocr(url, 2, lang))
     # print(text)
     if success:
-        results, buffs = parse(text, options, lang)
-        rate(results, lang)
+        level, results = parse(text, lang)
+        rate(level, results, options, lang)

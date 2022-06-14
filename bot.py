@@ -332,6 +332,7 @@ async def rate(ctx):
     if DEVELOPMENT and not (ctx.channel and ctx.channel.id == DEV_CHANNEL_ID):
         return
 
+    score = 0.0
     lang = get_lang(ctx)
     presets = get_presets(ctx) or []
     presets = {preset.name: preset.command for preset in presets}
@@ -399,7 +400,7 @@ async def rate(ctx):
                 level = int(options[lang.lvl])
             elif level == None:
                 level = 20
-            score, main_score, main_weight, sub_score, sub_weight = ra.rate(level, results, options, lang)
+            score = ra.rate(level, results, options, lang)
             crashes = 0
             break
 
@@ -422,17 +423,17 @@ async def rate(ctx):
         await send(ctx, msg=lang.err_unknown)
         return
 
-    if score <= 50:
+    if score <= 30:
         color = discord.Color.blue()
-    elif score > 50 and score <= 75:
+    elif score > 30 and score <= 40:
         color = discord.Color.purple()
     else:
-        color = discord.Color.orange()
+        color = discord.Color.gold()
+
+    embed_thumbnail_url = get_score_icon_url(score)
 
     # メッセージ生成
     msg_blank = '\u200b'
-    msg = f'\n\n**{lang.score}: {int(score * (main_weight + sub_weight))} ({score:.2f}%)**'
-    msg += f'\n{lang.sub_score}: {int(sub_score * sub_weight)} ({sub_score:.2f}%)'
 
     msg_main_op = f'> {results[0][0]}: {results[0][1]}\n'
 
@@ -452,6 +453,12 @@ async def rate(ctx):
     # 送信者情報セット
     embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
 
+    # スコア
+    embed.add_field(name=f'**{score} {lang.score_suffix}**',
+                    value='\n' + msg_blank,
+                    inline=False)
+    embed.set_thumbnail(url=embed_thumbnail_url)
+
     # メインOP
     embed.add_field(name=f'**{lang.main_option}:**',
                     value=f'{msg_main_op}' + msg_blank,
@@ -462,8 +469,8 @@ async def rate(ctx):
                     value=f'{msg_sub_op}' + msg_blank,
                     inline=False)
 
-    embed.add_field(name=f'{lang.art_level}: {level}',
-                    value=msg)
+    # フッタ
+    embed.set_footer(text=lang.score_footer + msg_blank)
 
     await send(ctx, embed=embed)
 
@@ -514,25 +521,20 @@ def make_f(name, lang):
     return _f
 
 
+# スコアに応じてサムネを表示
 def get_score_icon_url(point):
     point = int(point)
 
-    if point <= 50:
+    if point < 20:
         url = 'https://media.discordapp.net/attachments/884348128441024523/884373496287858699/score_50.png'
-    elif point <= 60:
-        url = 'https://media.discordapp.net/attachments/884348128441024523/884373523953496094/score_60.jpg'
-    elif point <= 70:
-        url = 'https://media.discordapp.net/attachments/884348128441024523/886134000291307520/score_60_70.jpg'
-    elif point <= 80:
-        url = 'https://media.discordapp.net/attachments/884348128441024523/884382339088670741/score_80.jpg'
-    elif point <= 85:
+    elif point < 30:
         url = 'https://media.discordapp.net/attachments/884348128441024523/886195050151813120/score_80_85.jpg'
-    elif point <= 90:
+    elif point < 40:
+        url = 'https://media.discordapp.net/attachments/884348128441024523/884373523953496094/score_60.jpg'
+    elif 40 <= point:
         url = 'https://media.discordapp.net/attachments/884348128441024523/886196092092436510/score_85_90.jpg'
-    elif point <= 95:
-        url = 'https://media.discordapp.net/attachments/884348128441024523/884373604601577482/score_90.gif'
     else:
-        url = 'https://media.discordapp.net/attachments/884348128441024523/884375978309214208/score_90.gif'
+        url = 'https://media.discordapp.net/attachments/884348128441024523/884373604601577482/score_90.gif'
 
     return url
 
